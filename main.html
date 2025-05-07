@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>腕立てカウンター</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            background: #f0f4f8;
+            padding: 10px;
+        }
+
+        video {
+            width: 90%;
+            max-width: 400px;
+            border-radius: 12px;
+            margin: 10px auto;
+        }
+
+        .counter-box {
+            font-size: 2rem;
+            margin-top: 10px;
+        }
+
+        .cheer {
+            font-size: 1.5rem;
+            color: #0077cc;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>💪 腕立てカウンター</h1>
+    <video id="video" autoplay playsinline></video>
+    <div class="counter-box">回数: <span id="count">0</span></div>
+    <div class="cheer" id="cheer"></div>
+
+    <!-- ライブラリ読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
+    <script>
+        const video = document.getElementById("video");
+        const countDisplay = document.getElementById("count");
+        const cheerDisplay = document.getElementById("cheer");
+        let count = 0;
+        let wentDown = false;
+        let detector;
+
+        async function setupCamera() {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            return new Promise(resolve => {
+                video.onloadedmetadata = () => resolve(video);
+            });
+        }
+
+        async function init() {
+            await tf.setBackend('webgl');
+            await setupCamera();
+            detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet);
+            runDetection();
+        }
+
+        function speak(text) {
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.lang = 'ja-JP';
+            speechSynthesis.speak(uttr);
+        }
+
+        async function runDetection() {
+            const poses = await detector.estimatePoses(video);
+            if (poses.length > 0) {
+                const nose = poses[0].keypoints.find(p => p.name === 'nose');
+                if (nose && nose.score > 0.6) {
+                    const y = nose.y;
+                    // 基準値はおおよそ300〜400で調整
+                    if (y > 350) {
+                        wentDown = true;
+                    } else if (wentDown && y < 300) {
+                        count++;
+                        countDisplay.textContent = count;
+                        cheerDisplay.textContent = `いいぞ！あと${10 - count}回！`;
+                        speak("ナイス！その調子！");
+                        wentDown = false;
+                    }
+                }
+            }
+            requestAnimationFrame(runDetection);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
